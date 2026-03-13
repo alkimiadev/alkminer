@@ -152,7 +152,8 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 - Batch size M = 1024 merkle roots
 - P(success per batch) ≈ 3.0% at current difficulty (144.4T)
 - Expected batches until success: ~33
-- Abandonment yields ~400-800x savings vs exhaustive search
+- Main benefit: **1024x speedup from GPU parallelism** (not early abandonment)
+- Each GPU hash tests 1 header × 1024 merkle combinations
 
 **Tasks**:
 - [ ] Implement Bayesian probability calculations
