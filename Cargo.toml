@@ -1,0 +1,24 @@
+[package]
+name = "alkminer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "GPU-accelerated Bitcoin mining with stratified nonce sampling"
+
+[dependencies]
+wgpu = "24"
+handlebars = { version = "6", features = ["dir_source"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+async-trait = "0.1"
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = "0.5"
+hex = "0.4"

@@ -1,0 +1,81 @@
+// ------------------------------
+// RNG Implementation (xoshiro128+)
+// ------------------------------
+struct RNGState {
+    s0: u32,
+    s1: u32,
+    s2: u32,
+    s3: u32,
+};
+
+fn rotl(x: u32, k: u32) -> u32 {
+    return (x << k) | (x >> (32u - k));
+}
+
+fn xoshiro128p(state: ptr<function, RNGState>) -> f32 {
+    var s0 = (*state).s0;
+    var s1 = (*state).s1;
+    var s2 = (*state).s2;
+    var s3 = (*state).s3;
+    
+    let result = s0 + s3;
+    
+    let t = s1 << 9u;
+    s2 = s2 ^ s0;
+    s3 = s3 ^ s1;
+    s1 = s1 ^ s2;
+    s0 = s0 ^ s3;
+    s2 = s2 ^ t;
+    s3 = rotl(s3, 11u);
+    
+    (*state).s0 = s0;
+    (*state).s1 = s1;
+    (*state).s2 = s2;
+    (*state).s3 = s3;
+    
+    return f32(result & 0x7FFFFFFFu) / 2147483648.0;
+}
+
+fn random_range(min: u32, max: u32, state: ptr<function, RNGState>) -> u32 {
+    let range: u32 = max - min + 1u;
+    return min + u32(floor(xoshiro128p(state) * f32(range)));
+}
+
+fn random_u32(state: ptr<function, RNGState>) -> u32 {
+    let hi = u32(floor(xoshiro128p(state) * 65536.0));
+    let lo = u32(floor(xoshiro128p(state) * 65536.0));
+    return (hi << 16u) | lo;
+}
+
+struct Random64 {
+    high: u32,
+    low: u32,
+};
+
+fn generate_random_64(state: ptr<function, RNGState>) -> Random64 {
+    // Advance state to help avoid bias.
+    let _dummy: f32 = xoshiro128p(state);
+    
+    // Choose a total bit-length n ∈ [59,64]
+    let n: u32 = random_range(59u, 64u, state);
+    let k: u32 = n - 32u;
+    
+    // The high part is generated as a k-bit number with the top bit set.
+    let high_min: u32 = 1u << (k - 1u);
+    let high_max: u32 = (1u << k) - 1u;
+    let high_part: u32 = random_range(high_min, high_max, state);
+    
+    let low_part: u32 = random_u32(state);
+    
+    return Random64(high_part, low_part);
+}
+
+fn seed_rng(global_id: vec2<u32>, seed: u32) -> RNGState {
+    let hash = global_id.x ^ (global_id.y << 16u) ^ seed;
+    return RNGState(
+        hash,
+        hash * 1664525u + 1013904223u,
+        hash ^ 0x9E3779B9u,
+        1u
+    );
+}

@@ -1,0 +1,426 @@
+const MAX_INPUT_SIZE_WORDS: u32 = {{#if max_size_words}}{{max_size_words}}{{else}}64{{/if}}u;
+
+struct SHA256Context {
+  data: array<u32, 64>,
+  datalen: u32,
+  bitlen: u32,
+  state: array<u32, 8>,
+};
+
+fn rotr(x: u32, n: u32) -> u32 {
+  return (x >> n) | (x << (32u - n));
+}
+
+fn ch(x: u32, y: u32, z: u32) -> u32 {
+  return (x & y) ^ ((~x) & z);
+}
+
+fn maj(x: u32, y: u32, z: u32) -> u32 {
+  return (x & y) ^ (x & z) ^ (y & z);
+}
+
+fn ep0(x: u32) -> u32 {
+  return rotr(x, 2u) ^ rotr(x, 13u) ^ rotr(x, 22u);
+}
+
+fn ep1(x: u32) -> u32 {
+  return rotr(x, 6u) ^ rotr(x, 11u) ^ rotr(x, 25u);
+}
+
+fn sig0(x: u32) -> u32 {
+  return rotr(x, 7u) ^ rotr(x, 18u) ^ (x >> 3u);
+}
+
+fn sig1(x: u32) -> u32 {
+  return rotr(x, 17u) ^ rotr(x, 19u) ^ (x >> 10u);
+}
+
+fn k_value(i: u32) -> u32 {
+  switch(i) {
+    case 0u: { return 0x428a2f98u; }
+    case 1u: { return 0x71374491u; }
+    case 2u: { return 0xb5c0fbcfu; }
+    case 3u: { return 0xe9b5dba5u; }
+    case 4u: { return 0x3956c25bu; }
+    case 5u: { return 0x59f111f1u; }
+    case 6u: { return 0x923f82a4u; }
+    case 7u: { return 0xab1c5ed5u; }
+    case 8u: { return 0xd807aa98u; }
+    case 9u: { return 0x12835b01u; }
+    case 10u: { return 0x243185beu; }
+    case 11u: { return 0x550c7dc3u; }
+    case 12u: { return 0x72be5d74u; }
+    case 13u: { return 0x80deb1feu; }
+    case 14u: { return 0x9bdc06a7u; }
+    case 15u: { return 0xc19bf174u; }
+    case 16u: { return 0xe49b69c1u; }
+    case 17u: { return 0xefbe4786u; }
+    case 18u: { return 0x0fc19dc6u; }
+    case 19u: { return 0x240ca1ccu; }
+    case 20u: { return 0x2de92c6fu; }
+    case 21u: { return 0x4a7484aau; }
+    case 22u: { return 0x5cb0a9dcu; }
+    case 23u: { return 0x76f988dau; }
+    case 24u: { return 0x983e5152u; }
+    case 25u: { return 0xa831c66du; }
+    case 26u: { return 0xb00327c8u; }
+    case 27u: { return 0xbf597fc7u; }
+    case 28u: { return 0xc6e00bf3u; }
+    case 29u: { return 0xd5a79147u; }
+    case 30u: { return 0x06ca6351u; }
+    case 31u: { return 0x14292967u; }
+    case 32u: { return 0x27b70a85u; }
+    case 33u: { return 0x2e1b2138u; }
+    case 34u: { return 0x4d2c6dfcu; }
+    case 35u: { return 0x53380d13u; }
+    case 36u: { return 0x650a7354u; }
+    case 37u: { return 0x766a0abbu; }
+    case 38u: { return 0x81c2c92eu; }
+    case 39u: { return 0x92722c85u; }
+    case 40u: { return 0xa2bfe8a1u; }
+    case 41u: { return 0xa81a664bu; }
+    case 42u: { return 0xc24b8b70u; }
+    case 43u: { return 0xc76c51a3u; }
+    case 44u: { return 0xd192e819u; }
+    case 45u: { return 0xd6990624u; }
+    case 46u: { return 0xf40e3585u; }
+    case 47u: { return 0x106aa070u; }
+    case 48u: { return 0x19a4c116u; }
+    case 49u: { return 0x1e376c08u; }
+    case 50u: { return 0x2748774cu; }
+    case 51u: { return 0x34b0bcb5u; }
+    case 52u: { return 0x391c0cb3u; }
+    case 53u: { return 0x4ed8aa4au; }
+    case 54u: { return 0x5b9cca4fu; }
+    case 55u: { return 0x682e6ff3u; }
+    case 56u: { return 0x748f82eeu; }
+    case 57u: { return 0x78a5636fu; }
+    case 58u: { return 0x84c87814u; }
+    case 59u: { return 0x8cc70208u; }
+    case 60u: { return 0x90befffau; }
+    case 61u: { return 0xa4506cebu; }
+    case 62u: { return 0xbef9a3f7u; }
+    case 63u: { return 0xc67178f2u; }
+    default: { return 0u; }
+  }
+}
+
+fn sha256_init() -> SHA256Context {
+  var ctx: SHA256Context;
+  ctx.datalen = 0u;
+  ctx.bitlen = 0u;
+  ctx.state[0] = 0x6a09e667u;
+  ctx.state[1] = 0xbb67ae85u;
+  ctx.state[2] = 0x3c6ef372u;
+  ctx.state[3] = 0xa54ff53au;
+  ctx.state[4] = 0x510e527fu;
+  ctx.state[5] = 0x9b05688cu;
+  ctx.state[6] = 0x1f83d9abu;
+  ctx.state[7] = 0x5be0cd19u;
+  return ctx;
+}
+
+fn sha256_transform(ctx: SHA256Context) -> SHA256Context {
+  var local_ctx = ctx;
+  var m: array<u32, 64>;
+
+  for (var i: u32 = 0u; i < 16u; i = i + 1u) {
+    let j = i * 4u;
+    m[i] = (local_ctx.data[j] << 24u) |
+           (local_ctx.data[j + 1u] << 16u) |
+           (local_ctx.data[j + 2u] << 8u) |
+           (local_ctx.data[j + 3u]);
+  }
+
+  for (var i: u32 = 16u; i < 64u; i = i + 1u) {
+    m[i] = sig1(m[i - 2u]) + m[i - 7u] + sig0(m[i - 15u]) + m[i - 16u];
+  }
+
+  var a: u32 = local_ctx.state[0];
+  var b: u32 = local_ctx.state[1];
+  var c: u32 = local_ctx.state[2];
+  var d: u32 = local_ctx.state[3];
+  var e: u32 = local_ctx.state[4];
+  var f: u32 = local_ctx.state[5];
+  var g: u32 = local_ctx.state[6];
+  var h: u32 = local_ctx.state[7];
+
+  for (var i: u32 = 0u; i < 64u; i = i + 1u) {
+    let t1 = h + ep1(e) + ch(e, f, g) + k_value(i) + m[i];
+    let t2 = ep0(a) + maj(a, b, c);
+    h = g;
+    g = f;
+    f = e;
+    e = d + t1;
+    d = c;
+    c = b;
+    b = a;
+    a = t1 + t2;
+  }
+
+  local_ctx.state[0] = local_ctx.state[0] + a;
+  local_ctx.state[1] = local_ctx.state[1] + b;
+  local_ctx.state[2] = local_ctx.state[2] + c;
+  local_ctx.state[3] = local_ctx.state[3] + d;
+  local_ctx.state[4] = local_ctx.state[4] + e;
+  local_ctx.state[5] = local_ctx.state[5] + f;
+  local_ctx.state[6] = local_ctx.state[6] + g;
+  local_ctx.state[7] = local_ctx.state[7] + h;
+  return local_ctx;
+}
+
+fn sha256_final_packed(ctx: SHA256Context) -> array<u32, 8> {
+  var local_ctx = ctx;
+  let datalen = local_ctx.datalen;
+  var pad_index: u32 = datalen;
+
+  if (datalen < 56u) {
+    local_ctx.data[pad_index] = 0x80u;
+    pad_index = pad_index + 1u;
+    while (pad_index < 56u) {
+      local_ctx.data[pad_index] = 0u;
+      pad_index = pad_index + 1u;
+    }
+  } else {
+    local_ctx.data[pad_index] = 0x80u;
+    pad_index = pad_index + 1u;
+    while (pad_index < 64u) {
+      local_ctx.data[pad_index] = 0u;
+      pad_index = pad_index + 1u;
+    }
+    local_ctx = sha256_transform(local_ctx);
+    for (var j: u32 = 0u; j < 56u; j = j + 1u) {
+      local_ctx.data[j] = 0u;
+    }
+  }
+
+  local_ctx.bitlen = local_ctx.bitlen + (datalen * 8u);
+  local_ctx.data[63u] = (local_ctx.bitlen      ) & 0xffu;
+  local_ctx.data[62u] = (local_ctx.bitlen >> 8u ) & 0xffu;
+  local_ctx.data[61u] = (local_ctx.bitlen >> 16u) & 0xffu;
+  local_ctx.data[60u] = (local_ctx.bitlen >> 24u) & 0xffu;
+  local_ctx.data[59u] = 0u;
+  local_ctx.data[58u] = 0u;
+  local_ctx.data[57u] = 0u;
+  local_ctx.data[56u] = 0u;
+
+  local_ctx = sha256_transform(local_ctx);
+
+  var hash: array<u32, 8>;
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    hash[i] = local_ctx.state[i];
+  }
+  return hash;
+}
+
+fn sha256_final(ctx: SHA256Context) -> array<u32, 32> {
+  var local_ctx = ctx;
+  let datalen = local_ctx.datalen;
+  var pad_index: u32 = datalen;
+
+  if (datalen < 56u) {
+    local_ctx.data[pad_index] = 0x80u;
+    pad_index = pad_index + 1u;
+    while (pad_index < 56u) {
+      local_ctx.data[pad_index] = 0u;
+      pad_index = pad_index + 1u;
+    }
+  } else {
+    local_ctx.data[pad_index] = 0x80u;
+    pad_index = pad_index + 1u;
+    while (pad_index < 64u) {
+      local_ctx.data[pad_index] = 0u;
+      pad_index = pad_index + 1u;
+    }
+    local_ctx = sha256_transform(local_ctx);
+    for (var j: u32 = 0u; j < 56u; j = j + 1u) {
+      local_ctx.data[j] = 0u;
+    }
+  }
+
+  local_ctx.bitlen = local_ctx.bitlen + (datalen * 8u);
+  local_ctx.data[63u] = (local_ctx.bitlen      ) & 0xffu;
+  local_ctx.data[62u] = (local_ctx.bitlen >> 8u ) & 0xffu;
+  local_ctx.data[61u] = (local_ctx.bitlen >> 16u) & 0xffu;
+  local_ctx.data[60u] = (local_ctx.bitlen >> 24u) & 0xffu;
+  local_ctx.data[59u] = 0u;
+  local_ctx.data[58u] = 0u;
+  local_ctx.data[57u] = 0u;
+  local_ctx.data[56u] = 0u;
+
+  local_ctx = sha256_transform(local_ctx);
+
+  var hash: array<u32, 32>;
+  for (var i: u32 = 0u; i < 4u; i = i + 1u) {
+    hash[i]       = (local_ctx.state[0] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 4u]  = (local_ctx.state[1] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 8u]  = (local_ctx.state[2] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 12u] = (local_ctx.state[3] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 16u] = (local_ctx.state[4] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 20u] = (local_ctx.state[5] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 24u] = (local_ctx.state[6] >> (24u - i * 8u)) & 0xffu;
+    hash[i + 28u] = (local_ctx.state[7] >> (24u - i * 8u)) & 0xffu;
+  }
+  return hash;
+}
+
+fn sha256_transform_packed(state: array<u32, 8>, data: array<u32, 16>) -> array<u32, 8> {
+  var m: array<u32, 64>;
+  for (var i: u32 = 0u; i < 16u; i = i + 1u) {
+    m[i] = data[i];
+  }
+  for (var i: u32 = 16u; i < 64u; i = i + 1u) {
+    m[i] = sig1(m[i - 2u]) + m[i - 7u] + sig0(m[i - 15u]) + m[i - 16u];
+  }
+
+  var a: u32 = state[0];
+  var b: u32 = state[1];
+  var c: u32 = state[2];
+  var d: u32 = state[3];
+  var e: u32 = state[4];
+  var f: u32 = state[5];
+  var g: u32 = state[6];
+  var h: u32 = state[7];
+
+  for (var i: u32 = 0u; i < 64u; i = i + 1u) {
+    let t1 = h + ep1(e) + ch(e, f, g) + k_value(i) + m[i];
+    let t2 = ep0(a) + maj(a, b, c);
+    h = g;
+    g = f;
+    f = e;
+    e = d + t1;
+    d = c;
+    c = b;
+    b = a;
+    a = t1 + t2;
+  }
+
+  var result: array<u32, 8>;
+  result[0] = state[0] + a;
+  result[1] = state[1] + b;
+  result[2] = state[2] + c;
+  result[3] = state[3] + d;
+  result[4] = state[4] + e;
+  result[5] = state[5] + f;
+  result[6] = state[6] + g;
+  result[7] = state[7] + h;
+  return result;
+}
+
+fn sha256(packed_data: array<u32, {{#if max_size_words}}{{max_size_words}}{{else}}64{{/if}}>, byte_len: u32) -> array<u32, 8> {
+  var ctx: SHA256Context = sha256_init();
+
+  let full_words = byte_len / 4u;
+  for (var i: u32 = 0u; i < full_words; i = i + 1u) {
+    let word = packed_data[i];
+    ctx.data[ctx.datalen] = (word >> 24u) & 0xffu;
+    ctx.datalen = ctx.datalen + 1u;
+    ctx.data[ctx.datalen] = (word >> 16u) & 0xffu;
+    ctx.datalen = ctx.datalen + 1u;
+    ctx.data[ctx.datalen] = (word >> 8u) & 0xffu;
+    ctx.datalen = ctx.datalen + 1u;
+    ctx.data[ctx.datalen] = word & 0xffu;
+    ctx.datalen = ctx.datalen + 1u;
+
+    if (ctx.datalen == 64u) {
+      ctx = sha256_transform(ctx);
+      ctx.bitlen = ctx.bitlen + 512u;
+      ctx.datalen = 0u;
+    }
+  }
+
+  let remaining = byte_len % 4u;
+  if (remaining > 0u) {
+    let word = packed_data[full_words];
+    for (var i: u32 = 0u; i < remaining; i = i + 1u) {
+      ctx.data[ctx.datalen] = (word >> (24u - i * 8u)) & 0xffu;
+      ctx.datalen = ctx.datalen + 1u;
+    }
+  }
+
+  return sha256_final_packed(ctx);
+}
+
+fn double_sha256(packed_data: array<u32, {{#if max_size_words}}{{max_size_words}}{{else}}64{{/if}}>, byte_len: u32) -> array<u32, 8> {
+  var state: array<u32, 8>;
+  state[0] = 0x6a09e667u;
+  state[1] = 0xbb67ae85u;
+  state[2] = 0x3c6ef372u;
+  state[3] = 0xa54ff53au;
+  state[4] = 0x510e527fu;
+  state[5] = 0x9b05688cu;
+  state[6] = 0x1f83d9abu;
+  state[7] = 0x5be0cd19u;
+
+  let full_words = byte_len / 4u;
+  let full_blocks = full_words / 16u;
+  for (var i: u32 = 0u; i < full_blocks; i = i + 1u) {
+    var block: array<u32, 16>;
+    for (var j: u32 = 0u; j < 16u; j = j + 1u) {
+      block[j] = packed_data[i * 16u + j];
+    }
+    state = sha256_transform_packed(state, block);
+  }
+
+  var remaining_words = full_words % 16u;
+  let remaining_bytes = byte_len % 4u;
+  var first_hash: array<u32, 8>;
+  if (remaining_words > 0u || remaining_bytes > 0u) {
+    var ctx: SHA256Context;
+    ctx.datalen = 0;
+    ctx.bitlen = full_blocks * 512u;
+    ctx.state = state;
+    for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+      ctx.data[i] = 0u;
+    }
+    for (var i: u32 = 0u; i < remaining_words; i = i + 1u) {
+      let word = packed_data[full_blocks * 16u + i];
+      ctx.data[i * 4u]     = (word >> 24u) & 0xffu;
+      ctx.data[i * 4u + 1u] = (word >> 16u) & 0xffu;
+      ctx.data[i * 4u + 2u] = (word >> 8u) & 0xffu;
+      ctx.data[i * 4u + 3u] = word & 0xffu;
+    }
+    ctx.datalen = remaining_words * 4u;
+    if (remaining_bytes > 0u) {
+      let word = packed_data[full_words];
+      for (var i: u32 = 0u; i < remaining_bytes; i = i + 1u) {
+        ctx.data[ctx.datalen] = (word >> (24u - i * 8u)) & 0xffu;
+        ctx.datalen = ctx.datalen + 1u;
+      }
+    }
+    first_hash = sha256_final_packed(ctx);
+  } else {
+    var padding_block: array<u32, 16>;
+    padding_block[0] = 0x80000000u;
+    for (var i: u32 = 1u; i < 14u; i = i + 1u) {
+      padding_block[i] = 0u;
+    }
+    let total_bits = byte_len * 8u;
+    padding_block[14] = 0u;
+    padding_block[15] = total_bits;
+    first_hash = sha256_transform_packed(state, padding_block);
+  }
+
+  var second_block: array<u32, 16>;
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    second_block[i] = first_hash[i];
+  }
+  second_block[8] = 0x80000000u;
+  for (var i: u32 = 9u; i < 14u; i = i + 1u) {
+    second_block[i] = 0u;
+  }
+  second_block[14] = 0u;
+  second_block[15] = 256u;
+
+  var state2: array<u32, 8>;
+  state2[0] = 0x6a09e667u;
+  state2[1] = 0xbb67ae85u;
+  state2[2] = 0x3c6ef372u;
+  state2[3] = 0xa54ff53au;
+  state2[4] = 0x510e527fu;
+  state2[5] = 0x9b05688cu;
+  state2[6] = 0x1f83d9abu;
+  state2[7] = 0x5be0cd19u;
+
+  return sha256_transform_packed(state2, second_block);
+}

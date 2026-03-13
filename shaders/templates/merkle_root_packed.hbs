@@ -1,0 +1,57 @@
+{{> sha256}}
+
+struct MerkleParams {
+  n_batch: u32,
+  branch_count: u32,
+};
+
+@group(0) @binding(0)
+var<storage, read> inputBuffer: array<u32>;
+@group(0) @binding(1)
+var<storage, read_write> outputBuffer: array<u32>;
+@group(0) @binding(2)
+var<uniform> params: MerkleParams;
+
+struct BranchBuffer {
+  branches: array<u32>,
+};
+
+@group(0) @binding(3)
+var<storage, read> branchBuffer: BranchBuffer;
+
+@compute @workgroup_size({{#if workgroup_size}}{{workgroup_size}}{{else}}256{{/if}})
+fn merkle_root_batch(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
+  let index = GlobalInvocationID.x;
+  if (index >= params.n_batch) {
+    return;
+  }
+
+  var current_hash: array<u32, 8>;
+  let in_offset = index * 8u;
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    current_hash[i] = inputBuffer[in_offset + i];
+  }
+
+  for (var branch_index: u32 = 0u; branch_index < params.branch_count; branch_index = branch_index + 1u) {
+    var concat_data: array<u32, MAX_INPUT_SIZE_WORDS>;
+    for (var i: u32 = 0u; i < 16u; i = i + 1u) {
+      concat_data[i] = 0u;
+    }
+
+    for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+      concat_data[i] = current_hash[i];
+    }
+
+    let branch_offset = branch_index * 8u;
+    for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+      concat_data[8u + i] = branchBuffer.branches[branch_offset + i];
+    }
+
+    current_hash = double_sha256(concat_data, 64u);
+  }
+
+  let out_offset = index * 8u;
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    outputBuffer[out_offset + i] = current_hash[i];
+  }
+}
