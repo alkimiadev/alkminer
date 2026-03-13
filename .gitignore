@@ -1,0 +1,11 @@
+/target
+/Cargo.lock
+opencode.json
+.opencode
+*.swp
+*.swo
+*~
+.DS_Store
+.idea
+.vscode
+*.iml
