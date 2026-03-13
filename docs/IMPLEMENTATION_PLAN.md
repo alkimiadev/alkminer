@@ -148,11 +148,11 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
    - Configurable sample size per iteration
    - State persistence for resumption
 
-**Key Parameters** (from `docs/research/stratified_nonce_sampling.md`):
+**Key Parameters** (see `docs/mining_parameters.md` for details):
 - Batch size M = 1024 merkle roots
-- P(success per batch) ≈ 8.4%
-- Abandonment threshold: P(H₁) < 1% after ~10,000 iterations
-- Expected ~400x savings vs exhaustive search
+- P(success per batch) ≈ 3.0% at current difficulty (144.4T)
+- Expected batches until success: ~33
+- Abandonment yields ~400-800x savings vs exhaustive search
 
 **Tasks**:
 - [ ] Implement Bayesian probability calculations

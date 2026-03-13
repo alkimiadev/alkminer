@@ -10,7 +10,9 @@ alkminer is a Rust implementation of a GPU-accelerated Bitcoin mining framework 
 
 ### Core Concept: Stratified Nonce Sampling
 
-See `docs/research/stratified_nonce_sampling.md` for the full theory. Key points:
+See `docs/research/stratified_nonce_sampling.md` for the full theory and `docs/mining_parameters.md` for current parameters.
+
+Key points:
 
 - Bitcoin mining has a 96-bit effective nonce space (64-bit coinbase nonce + 32-bit header nonce)
 - Changing coinbase nonce requires recomputing merkle root (~2000 SHA-256 ops)
@@ -19,11 +21,11 @@ See `docs/research/stratified_nonce_sampling.md` for the full theory. Key points
 
 **Strategy**: Generate batches of merkle roots upfront, randomly sample header nonces, abandon batches early using Bayesian probability when no valid nonces are found.
 
-### Key Probabilities (at difficulty ~50T)
+### Key Probabilities (at difficulty ~144T, current)
 
-- ~8.4% chance a batch of 1024 merkle roots contains at least one valid header nonce
-- ~91.6% of batches are "duds" - can abandon after testing ~0.25% of header space
-- This yields ~400x savings vs exhaustive search
+- ~3.0% chance a batch of 1024 merkle roots contains at least one valid header nonce
+- ~97% of batches are "duds" - can abandon early
+- This yields ~400-800x savings vs exhaustive search
 
 ## Architecture
 
