@@ -6,6 +6,8 @@ Context for AI agents working on alkminer.
 
 alkminer is a Rust implementation of a GPU-accelerated Bitcoin mining framework using stratified nonce sampling. It's being rewritten from a TypeScript/Deno prototype located at `/workspace/webgpu`.
 
+**Implementation Plan**: See `docs/IMPLEMENTATION_PLAN.md` for phases, tasks, and testing strategy.
+
 ### Core Concept: Stratified Nonce Sampling
 
 See `docs/research/stratified_nonce_sampling.md` for the full theory. Key points:
@@ -144,10 +146,3 @@ wgpu works without a physical GPU (software fallback). This is useful for:
 - Testing orchestration logic
 
 For multi-GPU testing without hardware, use `DeviceRegistry::mock()` (to be implemented) or rent GPU instances from vast.ai.
-
-## Future Work
-
-- Networking via iroh (not in current scope)
-- WASM target support (not in current scope)
-- ASIC comparison benchmarks
-- Bayesian abandonment controller
