@@ -129,38 +129,39 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 
 ### Phase 4: Mining Pipeline
 
-**Goal**: Implement stratified nonce sampling with Bayesian abandonment
+**Goal**: Implement batched mining with exhaustive search per batch
 
 **Components**:
 
 1. **BatchCoordinator**
    - Manages batch lifecycle
-   - Coordinates merkle root generation → header nonce sampling
+   - Coordinates: generate merkle roots → test all headers → repeat
    - Tracks results per batch
 
-2. **BayesianAbandonmentController**
-   - Calculates P(H₁ | no hits after b iterations)
-   - Determines when to abandon batch
-   - Configurable thresholds
+2. **HeaderTestingKernel**
+   - Tests all 2^32 header nonces against all merkle roots in batch
+   - Reports any valid nonces found
+   - Exhaustive search (no early abandonment)
 
-3. **SamplingStrategy**
-   - Random header nonce sampling
-   - Configurable sample size per iteration
-   - State persistence for resumption
+3. **MiningLoop**
+   - Simple state machine: generate → test → check → repeat
+   - Configurable batch size
+   - State persistence for resumption across restarts
 
 **Key Parameters** (see `docs/mining_parameters.md` for details):
 - Batch size M = 1024 merkle roots
 - P(success per batch) ≈ 3.0% at current difficulty (144.4T)
 - Expected batches until success: ~33
-- Main benefit: **1024x speedup from GPU parallelism** (not early abandonment)
-- Each GPU hash tests 1 header × 1024 merkle combinations
+- **No early abandonment** - always exhaust each batch
+- Benefit from GPU parallelism: testing 1 header × N merkles simultaneously
 
 **Tasks**:
-- [ ] Implement Bayesian probability calculations
 - [ ] Build BatchCoordinator
+- [ ] Implement exhaustive header testing kernel
 - [ ] Wire up modules into pipeline
 - [ ] Test with mock devices
 - [ ] Test with real GPU
+- [ ] Benchmark actual throughput (samples/sec)
 
 **Testing**: Mock for orchestration logic, vast.ai for real execution
 
@@ -199,6 +200,30 @@ Not in current scope:
 - WASM target support
 - ASIC comparison benchmarks
 - Pool protocol integration
+
+## What Needs Testing
+
+The theoretical analysis shows GPU parallelism should provide speedup, but actual performance needs validation:
+
+1. **GPU throughput benchmark**
+   - Measure actual samples/sec on target hardware
+   - Compare batch size tradeoffs (256 vs 1024 vs 4096)
+   - Identify bottlenecks (compute vs memory bandwidth)
+
+2. **Kernel efficiency**
+   - GPU kernel launch overhead
+   - Memory transfer costs (merkle roots to GPU)
+   - Thread synchronization costs
+
+3. **End-to-end timing**
+   - Time per batch (generate merkles + test all headers)
+   - Compare to theoretical estimates
+   - Measure scaling with multiple GPUs
+
+4. **Memory behavior**
+   - Cache efficiency at different batch sizes
+   - Memory bandwidth utilization
+   - Shared memory vs global memory performance
 
 ## Notes
 

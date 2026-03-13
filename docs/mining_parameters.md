@@ -2,34 +2,31 @@
 
 ## Overview
 
-This document summarizes the key parameters for the GPU-parallelized Bitcoin mining strategy using batched merkle root generation.
+This document summarizes the key parameters for GPU-parallelized Bitcoin mining using batched merkle root generation.
 
-## The Core Insight: GPU Parallelism
+## The Strategy
 
-**Traditional mining**: Test each header × merkle combination individually
+1. **Generate** a batch of N merkle roots (default: 1024)
+2. **Test** all 2^32 header nonces against all N merkle roots exhaustively
+3. **Repeat** with new batches until a valid nonce is found
 
-**Our strategy**: Test 1 header nonce against 1024 merkle roots simultaneously
+**No early abandonment** - always exhaust each batch completely.
 
-```
-Traditional: 1 hash → 1 combination tested
-Our batching: 1 hash → 1024 combinations tested (GPU broadcast)
+## The Benefit: GPU Parallelism
 
-Savings: ~1024x
-```
+The speedup comes from testing 1 header nonce against N merkle roots in parallel:
 
-The savings come from GPU utilization, not from "early abandonment" or Bayesian probability tricks.
+| Approach | Per Operation | Parallelism |
+|----------|---------------|-------------|
+| Traditional | 1 header × 1 merkle | Header nonces only |
+| Batched | 1 header × N merkles | Headers AND merkles |
 
-## The "Needles in Haystack" Context
+Each GPU thread handles one merkle root. The header nonce is broadcast to all threads.
 
-At current difficulty, there are ~127,000 valid nonces per block template:
-
-```
-Valid nonces in 96-bit space = 2^64 / difficulty
-                               = 1.84 × 10^19 / 144.4 × 10^12
-                               ≈ 127,000
-```
-
-These are uniformly distributed across the (merkle_root, header_nonce) combinations.
+**Not fewer hashes - faster execution due to:**
+- All N merkle roots stay in GPU memory (32KB for N=1024)
+- No CPU-GPU synchronization between merkle roots
+- Better GPU utilization
 
 ## Key Parameters
 
@@ -38,126 +35,112 @@ These are uniformly distributed across the (merkle_root, header_nonce) combinati
 | Parameter | Value |
 |-----------|-------|
 | Expected nonce cycles (D) | ~33,600 |
-| P(batch has valid nonce) | ~3.0% |
+| P(batch of 1024 has valid) | ~3.0% |
 | Expected batches until success | ~33 |
-| Expected header samples | ~141B |
-| Expected hash cost | ~282B hashes |
-| Merkle generation cost | ~67M hashes (negligible) |
+| Total merkle roots generated | ~33,600 |
+| Total header tests | ~144T combinations |
 
 ### Derivation
 
 ```
-Expected nonce cycles (D) = difficulty / 2^32
+D = difficulty / 2^32                    # expected nonce cycles
 
-P(batch has valid nonce) = 1 - exp(-1024 / D)
-                         ≈ 1024 / D (for small p)
-                         ≈ 3.0%
+P(batch has valid) = 1 - exp(-N/D)       # N = batch size
+                   ≈ N/D (for small values)
 
-Expected header samples = D × 2^32 / 1024
-                        ≈ 141 billion
-
-Expected hash cost = samples × 2 hashes per header
-                   ≈ 282 billion hashes
+Expected batches = 1 / P(batch has valid)
+                 ≈ D/N
 ```
 
-## Comparison to Traditional Mining
+## Why No Early Abandonment?
 
-| Metric | Traditional | Our Batching | Improvement |
-|--------|-------------|--------------|-------------|
-| Combinations to test | 144T | 144T | Same |
-| Hash cost | 289T hashes | 282B hashes | **1024x** |
-| Merkle generations | 33,600 | 33,621 | Same |
-| Time (1 GPU, 120 MH/s) | ~76 years | ~27 days | 1024x |
+The cost ratio makes early abandonment non-optimal:
 
-The key: we test the same number of combinations, but each GPU operation tests 1024 combinations instead of 1.
+| Cost | Hashes | Ratio |
+|------|--------|-------|
+| Generate batch of 1024 merkles | ~2M | 1 |
+| Test batch exhaustively | ~8.8T | 1:4,000,000 |
 
-## Multi-GPU Scaling
+Abandoning early wastes trillions of hashes to save millions. Always exhaust.
 
-With N independent GPUs operating in parallel:
+**Bayesian update doesn't help:**
+- Prior P(valid) = 3%
+- After testing 50% with no find: posterior = 1.5%
+- Still worth continuing (remaining work < cost of new batch)
 
-| GPUs | P(success round 1) | Expected time (at 120 MH/s each) |
-|------|--------------------|----------------------------------|
-| 1 | 3.0% | ~27 days |
-| 10 | 26% | ~2.7 days |
-| 100 | 95% | ~6.5 hours |
+## Batch Size Selection
 
-Each GPU independently generates batches and samples. First to find a valid nonce wins.
+All batch sizes generate the same total merkle roots:
 
-**Economics (vast.ai pricing):**
-- 12× RTX 4090: $3.20/hr
-- Expected time to find block: ~2.3 days
-- Expected cost: ~$176
-- Block reward: ~$218,750
+| Batch Size | P(valid) | Expected Batches | Total Merkles |
+|------------|----------|------------------|---------------|
+| 256 | 0.8% | 131 | 33,600 |
+| 512 | 1.5% | 66 | 33,600 |
+| 1024 | 3.0% | 33 | 33,600 |
+| 2048 | 6.1% | 16 | 33,600 |
+| 4096 | 12.2% | 8 | 33,600 |
 
-Note: This is expected value. Actual time follows geometric distribution with high variance.
+**Batch size tradeoffs:**
 
-## Cost Structure
+| Size | GPU Memory | Parallelism | Notes |
+|------|------------|-------------|-------|
+| 256 | 8 KB | Lower | More batches, more overhead |
+| 1024 | 32 KB | Good | Fits in L1 cache, reasonable choice |
+| 4096 | 128 KB | Higher | Fewer batches, more memory |
 
-| Operation | Hash Cost | Notes |
-|-----------|-----------|-------|
-| Merkle root generation | ~2000 | Per root, depends on transaction count |
-| Header nonce test | 2 | Double SHA-256 |
-| Batch header test | 2 | Tests 1 header × 1024 merkles (GPU parallel) |
+## Time Estimates
 
-**Cost ratio**: Merkle generation is ~1000x more expensive than header testing.
+Per batch (N=1024, testing all 2^32 headers):
 
-However, with batching:
-- Merkle cost: 33 batches × 1024 roots × 2000 hashes = 67M hashes
-- Header cost: 282B hashes
-- Merkle is negligible (0.02% of total)
+| Samples/sec | Time per Batch | Total (33 batches) |
+|-------------|----------------|-------------------|
+| 10M (conservative) | ~7 min | ~4 hours |
+| 100M (optimistic) | ~0.7 min | ~24 min |
 
-## Configuration Parameters
+**With multiple GPUs:**
+
+| GPUs | Conservative | Optimistic |
+|------|--------------|------------|
+| 1 | 4 hours | 24 min |
+| 10 | 24 min | 2.4 min |
+| 80 | 3 min | 18 sec |
+
+These are EXPECTED times. Actual follows geometric distribution with high variance.
+
+## Sampling Math
+
+Each sample tests 1024 × 1024 = 1M combinations:
+
+| Samples | % of Batch | P(find \| valid exists) |
+|---------|------------|------------------------|
+| 1 | 0.00002% | 0.00002% |
+| 1,000 | 0.02% | 0.02% |
+| 1,000,000 | 24% | 21% |
+| 4,194,304 | 100% | ~63% |
+
+To find a valid nonce (if it exists): need to test ~50% of batch on average.
+
+## Configuration
 
 ```rust
 struct MiningConfig {
     batch_size: usize,              // 1024 merkle roots per batch
-    header_nonces_per_sample: usize, // GPU workgroup size
-    max_samples_per_batch: u64,     // Exhaust 2^32 header space
+    exhaust_batch: bool,            // true - always test all headers
+    header_nonces_per_kernel: usize, // GPU workgroup size for parallelism
 }
 ```
 
-## Secondary: Bayesian Abandonment (Minor Optimization)
+## Caveats and Testing Needed
 
-After testing a fraction of the header space without success, we can update our belief about whether the batch contains a valid nonce:
-
-```
-P(batch has valid | no hits after n samples) 
-  = P(miss | valid) × P(valid) / P(miss)
-  ≈ exp(-n × 1024 / (D × 2^32)) × 0.03 / (...)
-```
-
-However, at current difficulty:
-- Prior is only 3%
-- Posterior barely changes until we've tested most of the space
-- Early abandonment provides minimal benefit
-
-The 1024x savings comes from GPU parallelism, not abandonment strategy.
-
-## Implementation Notes
-
-### GPU Kernel Structure
-
-```
-For each header nonce in parallel:
-  For each merkle root (1024, in shared memory):
-    Compute header hash
-    Check against target
-    If valid, report success
-```
-
-The inner loop over 1024 merkle roots is where the parallelism win happens.
-
-### Memory Requirements
-
-- 1024 merkle roots × 32 bytes = 32 KB per batch
-- Easily fits in GPU shared memory
-- Header nonce can be computed on-the-fly or stored
+1. **Actual GPU throughput** - need benchmarks to validate samples/sec estimates
+2. **Memory bandwidth** - 32KB per sample may hit bandwidth limits at high rates
+3. **Kernel efficiency** - overhead from GPU kernel launch, synchronization
+4. **Comparison to traditional** - need side-by-side benchmark on same hardware
 
 ## References
 
 - `docs/research/stratified_nonce_sampling.md` - Original theory
-  - **Note**: Contains errors in Bayesian derivation (decay units confusion)
-  - The claimed 400x savings from "early abandonment" is incorrect
-  - Real 1024x savings come from GPU parallelism
+  - **Note**: Contains errors in Bayesian derivation
+  - Claimed 400x from "early abandonment" is incorrect
 - `/workspace/webgpu/mining-calc/mining_calc.py` - Python calculations
 - `/workspace/webgpu/README.md` - TypeScript implementation
