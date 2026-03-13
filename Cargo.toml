@@ -7,7 +7,7 @@ license = "MIT"
 description = "GPU-accelerated Bitcoin mining with stratified nonce sampling"
 
 [dependencies]
-wgpu = "24"
+wgpu = "=24.0.5"
 handlebars = { version = "6", features = ["dir_source"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

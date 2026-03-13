@@ -68,7 +68,7 @@ alkminer/
 
 ## Dependencies
 
-- **wgpu** (v24): GPU compute API. Reference repo at `/workspace/wgpu` (note: repo is v28)
+- **wgpu** (v24.0.5): GPU compute API. Reference repo at `/workspace/wgpu` checked out at tag `wgpu-v24.0.5`
 - **handlebars** (v6): Shader templating. Reference repo at `/workspace/handlebars-rust`
 
 ### wgpu Notes
@@ -76,7 +76,7 @@ alkminer/
 - `AdapterInfo` provides `name`, `vendor`, `device`, `device_type`
 - **Critical for multi-GPU**: Same-model GPUs have IDENTICAL `name`, `vendor`, `device` values
 - Cannot deduplicate by `(name, vendor, device)` tuple - must use enumeration order
-- `Instance::enumerate_adapters()` returns all adapters (sync in v24, async in v28)
+- `Instance::enumerate_adapters()` returns `Vec<Adapter>` directly (synchronous in v24)
 - Device naming: use enumeration index for uniqueness - `"RTX A6000:0"`, `"RTX A6000:1"`, etc.
 - Known issue: `WGPU_ADAPTER_NAME` env var only selects first matching GPU (see `/workspace/wgpu/wgpu/src/util/init.rs`)
 - Enumeration order typically follows PCI bus order, should be consistent across runs
