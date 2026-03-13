@@ -121,4 +121,8 @@ impl Kernel {
     pub fn workgroup_size(&self) -> [u32; 3] {
         self.workgroup_size
     }
+
+    pub fn entry_point(&self) -> &str {
+        &self.entry_point
+    }
 }

@@ -13,6 +13,8 @@ alkminer is being built in phases, starting with core infrastructure and progres
 
 ## Testing Strategy
 
+See `docs/TESTING.md` for comprehensive testing patterns and utilities.
+
 ### No GPU Required
 - CPU crypto primitives (SHA-256, RNG, merkle tree)
 - Multi-GPU orchestration logic (using `DeviceRegistry::mock()`)
@@ -38,17 +40,21 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 
 ## Phases
 
-### Phase 0: Research & Infrastructure
+### Phase 0: Testing Infrastructure
 
 **Goal**: Establish testing patterns and mock infrastructure
 
-**Tasks**:
-- [ ] Implement `DeviceRegistry::mock(count: usize)` for testing
-- [ ] Research wgpu testing patterns from `/workspace/wgpu/tests/`
-- [ ] Document Bayesian abandonment parameters from research doc
-- [ ] Set up benchmarking infrastructure
+**Status**: Complete
 
-**Testing**: No GPU required
+**Completed**:
+- [x] Implement `DeviceRegistry::mock(count: usize)` for testing
+- [x] Create test utilities in `tests/common/mod.rs`
+- [x] Add GPU buffer read/write tests
+- [x] Add kernel creation/execution tests
+
+**Testing**: No GPU required. See `docs/TESTING.md` for patterns.
+
+**Benchmarking**: Deferred to Phase 4 (Mining Pipeline) where performance matters.
 
 ---
 
@@ -71,7 +77,7 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 - [ ] Implement concrete ComputeModule example
 - [ ] Integration tests with software fallback
 
-**Testing**: Software fallback sufficient
+**Testing**: Software fallback sufficient. Use patterns from `docs/TESTING.md`.
 
 ---
 

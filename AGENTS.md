@@ -121,6 +121,9 @@ TypeScript/Deno prototype at `/workspace/webgpu`:
 
 - Run `cargo test` after making changes
 - Add tests for new functionality
+- See `docs/TESTING.md` for comprehensive testing strategy
+- Most tests work without GPU via `force_fallback_adapter: true`
+- Use `DeviceRegistry::mock(count)` for multi-GPU orchestration tests
 
 ### SIMD Strategy
 
@@ -142,9 +145,9 @@ module.setup(&gpu.device, &gpu.queue)?;
 
 ## Testing Without GPU
 
-wgpu works without a physical GPU (software fallback). This is useful for:
-- Development on machines without GPUs
-- CI/CD pipelines
-- Testing orchestration logic
+See `docs/TESTING.md` for full details. Key points:
 
-For multi-GPU testing without hardware, use `DeviceRegistry::mock()` (to be implemented) or rent GPU instances from vast.ai.
+- wgpu works without physical GPU via `force_fallback_adapter: true`
+- Use `DeviceRegistry::mock(count)` for multi-GPU orchestration tests
+- Real GPU required only for performance benchmarks and multi-GPU execution
+- vast.ai for GPU instances when needed

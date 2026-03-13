@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use thiserror::Error;
 use wgpu::{Adapter, Device, DeviceType, Instance, Queue};
 
@@ -20,15 +21,24 @@ pub struct DeviceHandle {
     pub device_id: u32,
     pub device_type: DeviceType,
     pub index: usize,
-    adapter: Adapter,
+    adapter: Option<Arc<Adapter>>,
 }
 
 impl DeviceHandle {
     pub async fn connect(&self) -> Result<(Device, Queue), DeviceError> {
-        self.adapter
-            .request_device(&wgpu::DeviceDescriptor::default(), None)
-            .await
-            .map_err(|e| DeviceError::RequestDevice(e.to_string()))
+        match &self.adapter {
+            Some(adapter) => adapter
+                .request_device(&wgpu::DeviceDescriptor::default(), None)
+                .await
+                .map_err(|e| DeviceError::RequestDevice(e.to_string())),
+            None => Err(DeviceError::AdapterNotFound(
+                "Mock device cannot connect".to_string(),
+            )),
+        }
+    }
+
+    pub fn is_mock(&self) -> bool {
+        self.adapter.is_none()
     }
 }
 
@@ -41,7 +51,7 @@ pub struct DeviceRegistry {
 impl DeviceRegistry {
     pub fn enumerate() -> Result<Self, DeviceError> {
         let instance = Instance::default();
-        
+
         let adapters = instance.enumerate_adapters(wgpu::Backends::all());
 
         if adapters.is_empty() {
@@ -63,7 +73,7 @@ impl DeviceRegistry {
         for (idx, adapter) in adapters.into_iter().enumerate() {
             let info = adapter.get_info();
             let base_name = info.name.clone();
-            
+
             let id = if name_counts.get(&base_name).copied().unwrap_or(0) > 1 {
                 let sub_index = name_indices.entry(base_name.clone()).or_insert(0);
                 let id = format!("{}:{}", base_name, sub_index);
@@ -72,7 +82,7 @@ impl DeviceRegistry {
             } else {
                 base_name.clone()
             };
-            
+
             let handle = DeviceHandle {
                 id: id.clone(),
                 name: base_name,
@@ -80,14 +90,36 @@ impl DeviceRegistry {
                 device_id: info.device,
                 device_type: info.device_type,
                 index: idx,
-                adapter,
+                adapter: Some(Arc::new(adapter)),
             };
-            
+
             id_to_index.insert(id.clone(), devices.len());
             devices.push(handle);
         }
 
         Ok(Self { devices, id_to_index })
+    }
+
+    pub fn mock(count: usize) -> Self {
+        let mut devices = Vec::with_capacity(count);
+        let mut id_to_index = HashMap::new();
+
+        for i in 0..count {
+            let id = format!("MockGPU:{}", i);
+            let handle = DeviceHandle {
+                id: id.clone(),
+                name: "MockGPU".to_string(),
+                vendor: 0,
+                device_id: i as u32,
+                device_type: DeviceType::Cpu,
+                index: i,
+                adapter: None,
+            };
+            id_to_index.insert(id.clone(), i);
+            devices.push(handle);
+        }
+
+        Self { devices, id_to_index }
     }
 
     pub fn get(&self, id: &str) -> Option<&DeviceHandle> {

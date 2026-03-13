@@ -36,7 +36,7 @@ impl GpuBuffer {
     }
 
     pub fn create_output(device: &Device, label: &str, size: u64) -> Self {
-        Self::new(device, label, size, BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::MAP_READ)
+        Self::new(device, label, size, BufferUsages::COPY_DST | BufferUsages::MAP_READ)
     }
 
     pub fn create_uniform(device: &Device, label: &str, size: u64) -> Self {
