@@ -62,7 +62,7 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 
 **Goal**: Complete GPU compute abstraction layer
 
-**Status**: Partially complete
+**Status**: Complete
 
 **Completed**:
 - [x] `DeviceRegistry` with multi-GPU enumeration
@@ -70,14 +70,12 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 - [x] `GpuBuffer` wrapper
 - [x] `Kernel` and `ShaderBuilder`
 - [x] `ComputeModule` trait
+- [x] Test GPU buffer read/write operations
+- [x] Test kernel creation and execution
+- [x] Implement concrete ComputeModule example (`IncrementModule`)
+- [x] Integration tests with software fallback
 
-**Remaining**:
-- [ ] Test GPU buffer read/write operations
-- [ ] Test kernel creation and execution
-- [ ] Implement concrete ComputeModule example
-- [ ] Integration tests with software fallback
-
-**Testing**: Software fallback sufficient. Use patterns from `docs/TESTING.md`.
+**Testing**: Software fallback sufficient. All 39 tests pass without GPU.
 
 ---
 

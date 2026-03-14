@@ -18,6 +18,10 @@ pub trait ComputeModule: Send + Sync {
         device: &'a Device,
         queue: &'a Queue,
     ) -> BoxFuture<'a, Result<(), ModuleError>>;
-    fn run(&mut self) -> BoxFuture<'_, Result<(), ModuleError>>;
+    fn run<'a>(
+        &'a mut self,
+        device: &'a Device,
+        queue: &'a Queue,
+    ) -> BoxFuture<'a, Result<(), ModuleError>>;
     fn destroy(&mut self);
 }

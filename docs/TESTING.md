@@ -116,7 +116,8 @@ tests/
 ├── crypto_tests.rs         # SHA-256, RNG tests
 ├── device_tests.rs         # DeviceRegistry enumeration & lookup
 ├── buffer_tests.rs         # GpuBuffer read/write operations
-└── kernel_tests.rs         # Kernel creation & execution
+├── kernel_tests.rs         # Kernel creation & execution
+└── module_tests.rs         # ComputeModule lifecycle (IncrementModule)
 ```
 
 ### Test Utilities (`tests/common/mod.rs`)
