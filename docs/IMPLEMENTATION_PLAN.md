@@ -83,18 +83,18 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 
 **Goal**: Implement CPU-side cryptographic operations for verification and nonce regeneration
 
-**Status**: Partially complete
+**Status**: Complete
 
 **Completed**:
 - [x] SHA-256 (scalar implementation)
 - [x] xoshiro128+ RNG
 - [x] double_sha256 helper
+- [x] Merkle tree computation
+- [x] Block header hashing
+- [x] Verification against known test vectors (genesis block, block 1)
 
-**Remaining**:
-- [ ] Merkle tree computation
-- [ ] Block header hashing
-- [ ] SIMD optimization (later, using portable_simd or std::arch)
-- [ ] Verification against known test vectors
+**Deferred**:
+- SIMD optimization (later, using portable_simd or std::arch)
 
 **Testing**: CPU unit tests only
 
