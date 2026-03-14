@@ -17,8 +17,12 @@ async-trait = "0.1"
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+bytemuck = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = "0.5"
 hex = "0.4"
+bitcoin = "0.32"
+bitcoincore-rpc = "0.19"
+serde_json = "1"

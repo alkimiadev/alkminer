@@ -1,0 +1,118 @@
+{{> rng}}
+{{> sha256 max_size_words=16}}
+
+struct Params {
+  n_batch: u32,
+  template_byte_len: u32,
+  nonce_byte_offset: u32,
+  branch_count: u32,
+  seed: u32,
+};
+
+@group(0) @binding(0) var<storage, read> templateBuffer: array<u32>;
+@group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var<storage, read_write> merkleRootBuffer: array<u32>;
+
+struct BranchBuffer {
+  branches: array<u32>,
+};
+
+@group(0) @binding(3) var<storage, read> branchBuffer: BranchBuffer;
+
+fn double_sha256_bytes(data: ptr<function, array<u32, 100>>, byte_len: u32) -> array<u32, 8> {
+  var ctx: SHA256Context = sha256_init();
+
+  let byte_len_local = byte_len;
+  for (var i: u32 = 0u; i < byte_len_local; i = i + 1u) {
+    let word_idx = i / 4u;
+    let byte_idx = i % 4u;
+    let word = (*data)[word_idx];
+    let byte = (word >> (byte_idx * 8u)) & 0xffu;
+    ctx.data[ctx.datalen] = byte;
+    ctx.datalen = ctx.datalen + 1u;
+    if (ctx.datalen == 64u) {
+      ctx = sha256_transform(ctx);
+      ctx.bitlen = ctx.bitlen + 512u;
+      ctx.datalen = 0u;
+    }
+  }
+
+  let first_hash = sha256_final_packed(ctx);
+
+  var ctx2: SHA256Context = sha256_init();
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    ctx2.data[ctx2.datalen] = (first_hash[i] >> 24u) & 0xffu;
+    ctx2.datalen = ctx2.datalen + 1u;
+    ctx2.data[ctx2.datalen] = (first_hash[i] >> 16u) & 0xffu;
+    ctx2.datalen = ctx2.datalen + 1u;
+    ctx2.data[ctx2.datalen] = (first_hash[i] >> 8u) & 0xffu;
+    ctx2.datalen = ctx2.datalen + 1u;
+    ctx2.data[ctx2.datalen] = first_hash[i] & 0xffu;
+    ctx2.datalen = ctx2.datalen + 1u;
+  }
+  ctx2.bitlen = 256u;
+
+  return sha256_final_packed(ctx2);
+}
+
+@compute @workgroup_size({{#if workgroup_size}}{{workgroup_size}}{{else}}256{{/if}})
+fn coinbase_merkle_batch(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
+  let index = GlobalInvocationID.x;
+  if (index >= params.n_batch) {
+    return;
+  }
+
+  var tx_local: array<u32, 100>;
+  let template_words = (params.template_byte_len + 3u) / 4u;
+  for (var i: u32 = 0u; i < template_words; i = i + 1u) {
+    tx_local[i] = templateBuffer[i];
+  }
+
+  var state = seed_rng(vec2<u32>(index, 0u), params.seed);
+  let r64: Random64 = generate_uniform_64(&state);
+
+  let nonce_word_offset = params.nonce_byte_offset / 4u;
+  let nonce_byte_shift = (params.nonce_byte_offset % 4u) * 8u;
+
+  if (nonce_byte_shift == 0u) {
+    tx_local[nonce_word_offset] = r64.low;
+    tx_local[nonce_word_offset + 1u] = r64.high;
+  } else {
+    let mask_low = (1u << nonce_byte_shift) - 1u;
+    let low_part = tx_local[nonce_word_offset] & mask_low;
+    tx_local[nonce_word_offset] = low_part | (r64.low << nonce_byte_shift);
+
+    let remaining_shift = 32u - nonce_byte_shift;
+    let mid_word = (r64.low >> remaining_shift) | (r64.high << nonce_byte_shift);
+    tx_local[nonce_word_offset + 1u] = mid_word;
+
+    let high_mask = (1u << nonce_byte_shift) - 1u;
+    let high_part = tx_local[nonce_word_offset + 2u] & ~high_mask;
+    tx_local[nonce_word_offset + 2u] = high_part | (r64.high >> remaining_shift);
+  }
+
+  var current_hash: array<u32, 8> = double_sha256_bytes(&tx_local, params.template_byte_len);
+
+  for (var branch_index: u32 = 0u; branch_index < params.branch_count; branch_index = branch_index + 1u) {
+    var concat_data: array<u32, 16>;
+    for (var i: u32 = 0u; i < 16u; i = i + 1u) {
+      concat_data[i] = 0u;
+    }
+
+    for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+      concat_data[i] = current_hash[i];
+    }
+
+    let branch_offset = branch_index * 8u;
+    for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+      concat_data[8u + i] = branchBuffer.branches[branch_offset + i];
+    }
+
+    current_hash = double_sha256(concat_data, 64u);
+  }
+
+  let out_offset = index * 8u;
+  for (var i: u32 = 0u; i < 8u; i = i + 1u) {
+    merkleRootBuffer[out_offset + i] = current_hash[i];
+  }
+}

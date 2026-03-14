@@ -53,14 +53,11 @@ struct Random64 {
 };
 
 fn generate_random_64(state: ptr<function, RNGState>) -> Random64 {
-    // Advance state to help avoid bias.
     let _dummy: f32 = xoshiro128p(state);
     
-    // Choose a total bit-length n ∈ [59,64]
     let n: u32 = random_range(59u, 64u, state);
     let k: u32 = n - 32u;
     
-    // The high part is generated as a k-bit number with the top bit set.
     let high_min: u32 = 1u << (k - 1u);
     let high_max: u32 = (1u << k) - 1u;
     let high_part: u32 = random_range(high_min, high_max, state);
@@ -68,6 +65,12 @@ fn generate_random_64(state: ptr<function, RNGState>) -> Random64 {
     let low_part: u32 = random_u32(state);
     
     return Random64(high_part, low_part);
+}
+
+fn generate_uniform_64(state: ptr<function, RNGState>) -> Random64 {
+    let low: u32 = random_u32(state);
+    let high: u32 = random_u32(state);
+    return Random64(high, low);
 }
 
 fn seed_rng(global_id: vec2<u32>, seed: u32) -> RNGState {

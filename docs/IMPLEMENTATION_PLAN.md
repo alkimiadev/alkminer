@@ -100,34 +100,67 @@ Use `force_fallback_adapter: true` in `RequestAdapterOptions` to explicitly requ
 
 ---
 
-### Phase 3: GPU Compute Modules
+### Phase 3a: CoinbaseMerkleModule
 
-**Goal**: Port TypeScript modules to Rust ComputeModules
+**Goal**: Port coinbase merkle generation to GPU ComputeModule
 
-**Modules to implement**:
+**Status**: Complete
 
-1. **MerkleRootModule**
-   - Input: Coinbase hash + merkle branches
-   - Output: Batch of merkle roots
-   - Shader: `shaders/templates/merkle_root_packed.hbs` ✓
+**Completed**:
+- [x] Update `rng.hbs` partial with `generate_uniform_64` function
+- [x] Create `coinbase_merkle_packed.hbs` shader template
+- [x] Implement `CoinbaseMerkleModule` Rust struct
+- [x] Add CPU verification utilities for GPU results
+- [x] Verify GPU results match CPU implementation
 
-2. **CoinbaseModule**
-   - Input: Coinbase transaction template, RNG seed
-   - Output: Batch of modified coinbase transactions with random nonces
-   - Needs: RNG in WGSL ✓
+**Implementation**:
+- Input: coinbase template, nonce byte offset, merkle branches, batch size, seed
+- GPU-side: generate uniform 64-bit nonce → modify coinbase → double SHA-256 → build merkle root
+- Output: batch of merkle roots (32 bytes each)
+- No intermediate host-GPU transfers
+- Deterministic RNG for reproducibility
 
-3. **HeaderHashModule**
-   - Input: Block header template + merkle roots + header nonces
-   - Output: Hash results + difficulty check
-   - Purpose: Test header nonces against target
+**Testing**: GL backend required for llvmpipe (Vulkan has issues with fixed-size array function parameters). Real GPU should work with Vulkan.
+
+**Known Issue**: The Vulkan backend (llvmpipe) has issues with WGSL fixed-size array function parameters (e.g., `fn foo(data: array<u32, 16>)`). Use GL backend for CPU testing. This may be resolved in future Mesa/wgpu versions.
+
+---
+
+### Phase 3b: HeaderHashModule
+
+**Goal**: Port header hashing to GPU ComputeModule
+
+**Status**: Pending
+
+**Design**:
+- Input: block header template, merkle roots buffer, target difficulty
+- GPU-side: for each merkle root, enumerate 2^32 header nonces, check against target
+- Output: valid (merkle_index, header_nonce) pairs found
+- Exhaustive search (no early abandonment)
 
 **Tasks**:
-- [ ] Port `MerkleRootModulePacked` from TypeScript
-- [ ] Implement `CoinbaseModule`
-- [ ] Implement `HeaderHashModule`
+- [ ] Create `header_hash.hbs` shader template
+- [ ] Implement `HeaderHashModule` Rust struct
+- [ ] Add seeding utilities for multi-node/multi-GPU coordination
 - [ ] Verify GPU results match CPU implementation
+- [ ] Benchmark single-batch throughput
 
-**Testing**: Software fallback sufficient for correctness, GPU for performance
+**Seeding Strategy** (for reproducibility across multi-node/multi-GPU):
+
+```
+global_seed: u64  // user-provided or random
+node_id: u16      // coordinator-assigned
+gpu_id: u16       // device index within node
+batch_index: u32  // incrementing counter
+
+per_batch_seed = global_seed ^ ((node_id as u64) << 48) ^ ((gpu_id as u64) << 32) ^ (batch_index as u64)
+```
+
+Any winning nonce can be regenerated from: `(global_seed, node_id, gpu_id, batch_index, in_batch_index)`
+
+**RNG**:
+- Coinbase nonce: uniform 64-bit random (`high=random_u32(), low=random_u32()`)
+- Header nonce: enumerate 0 → 2^32-1 (deterministic, no seed needed)
 
 ---
 

@@ -61,6 +61,12 @@ impl Xoshiro128Plus {
         (hi << 32) | lo
     }
 
+    pub fn next_u64_uniform(&mut self) -> u64 {
+        let low = self.next_u32() as u64;
+        let high = self.next_u32() as u64;
+        (high << 32) | low
+    }
+
     pub fn next_u64_range(&mut self, min_bits: u32, max_bits: u32) -> (u32, u32) {
         let _ = self.next_f32();
 

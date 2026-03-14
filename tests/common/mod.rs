@@ -3,15 +3,38 @@ use wgpu::{Device, Queue};
 
 #[allow(dead_code)]
 pub async fn create_test_device() -> (Device, Queue) {
-    let instance = wgpu::Instance::default();
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::GL,
+        ..Default::default()
+    });
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: true,
+            force_fallback_adapter: false,
             compatible_surface: None,
         })
-        .await
-        .expect("No adapter available");
+        .await;
+
+    let adapter = match adapter {
+        Some(a) => a,
+        None => {
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::VULKAN,
+                ..Default::default()
+            });
+            instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::default(),
+                    force_fallback_adapter: false,
+                    compatible_surface: None,
+                })
+                .await
+                .expect("No adapter available")
+        }
+    };
+
+    let info = adapter.get_info();
+    eprintln!("Adapter: {:?}", info);
 
     adapter
         .request_device(&wgpu::DeviceDescriptor::default(), None)
